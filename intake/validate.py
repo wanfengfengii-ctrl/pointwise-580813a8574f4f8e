@@ -18,4 +18,8 @@ def validate_envelope(envelope: Envelope) -> VerifiedItem:
     if read_identity(body) != envelope.identity:
         raise ValueError('body provenance does not match envelope')
     references = make_reference_pair(body.get('references'))
+    if envelope.version == 2:
+        # Full structural and domination validation of the four-state measures.
+        from .sum_validate import parse_sum_body
+        parse_sum_body(envelope.body, references, references.canonical())
     return VerifiedItem(envelope, references)

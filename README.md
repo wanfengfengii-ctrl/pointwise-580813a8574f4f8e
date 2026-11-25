@@ -33,6 +33,8 @@ python3 -B demo.py
 | `station.issue.issue(issues, revision_id)`、`station.issue.reissue(issues, issue_id)` | 两者返回 `FrozenIssue`。使用 `.raw` 传送固定件字节。重复指定同一修订或按发行号补发均返回原件。 |
 | `intake.receipt.receive(archive, raw)` | 核验并保存固定件，返回 `ReceivedItem`，其中 `receipt_id` 是中心实收号。`get_received(archive, receipt_id)` 读取该已验原件。 |
 | `risk.request.assess(archive, reports, request)` | `AssessmentRequest((left_id, right_id), JointPrior(batch_id, make_reference_pair(names), masses), isolation_line)` 指定本次参数。`masses` 按声明参考次序依次为 00、01、10、11。返回 `ReportBundle`，其 `report.draft` 包含有序出处、精确先验、风险及裁决，`receipt` 是成功回执。 |
+| `station.issue.issue_sum(issues, revision_id, supports)` | 按逐行闭区间支持发行 V2 合读件，返回与 V1 同形的 `FrozenIssue`。`supports` 与 `load_revision` 的全部试验行按序一一对应，每项 `(lo, hi)` 为精确有理数且 `lo <= hi`；零宽区间视为点质量。同一修订仅一份 V2，端点精确等价的重复请求返回原件，改支持报 `ValueError`。 |
+| `risk.request.assess_sum(archive, reports, request, sum_reading)` | 对两份 V2 件按合读 `sum_reading` 核定邻域极限。双件须同批、异站、参考名集合一致。稿面另含 `sum_reading` 与 `support_order`；无支持签 `unsupported`/`review`。详见 SUM_REVIEW.md。 |
 | `report.retrieve.read(reports, report_id)` | 返回原样的 `ReportBundle`。有效编号在库中找不到时返回 `None`。 |
 
 批号、参考名和台架标识为非空可打印字符串，首尾无空格。公开编号为正整数。状态位为整数 0 或 1，试验标记为布尔值。Python 接口的精确数值接受 `Fraction`、整数或 `Fraction` 可解析的字符串，例如 `1/4`、`0.25`。隔离线须在 `[0,1]`。非法内容、批次错配、参考错配及同台架双件报 `ValueError`。按号查询未知批次、修订、发行或实收报 `KeyError`。SQLite 写入错误由调用者接收，未提交的当次业务写入回滚。
@@ -42,6 +44,10 @@ python3 -B demo.py
 固定件是 UTF-8 JSON 对象。外层字段为 `version`（整数 1）、`batch_id`、`station`、`revision_id`、`issue_id`、`sha256` 和 `body`。`body` 是正文的原始 JSON 文本字符串，摘要为该字符串的 UTF-8 字节的 SHA-256 小写十六进制值。重送按批号、台架、发行号及已核验原正文识别，中心归档首次实收的完整字节。
 
 正文包含同样的四个出处字段 `batch_id`、`station`、`revision_id`、`issue_id`，还包含两条名称组成的 `references` 数组和 `evidence` 数组。证据数组列出四个不同的状态，每项为 `state`（按声明名称排列的两位整数）、`likelihood`（非负精确有理数）和 `exceedance`（介于零与 `likelihood` 之间的精确有理数）。发行以字符串编码质量，核定也接受 JSON 整数。实收先核验外层、摘要和共有出处，核定再校验四状态证据。外层或正文的重复 JSON 键均拒绝。
+
+## V2 合读固定件
+
+V2 外层沿用 V1 的字段与摘要口径，仅把 `version` 置为整数 `2`；正文保留四个出处字段和两参考名，以 `distributions` 数组替代 `evidence`，逐具名状态给出两类测度 `match` 与 `exceed`。每个测度对象含一个 `components` 数组，元素有两种精确编码：点质量 `[读数, 质量]`，以及正宽闭区间上的均匀测度 `[lo, hi, 总质量]`；所有有理数均以字符串编码，空测度为空数组。零宽区间不得用三元素形式编码，必须用点质量。实收核验四态分布完整、分量非负，并确认逐段密度与点质量上 `exceed` 不超过 `match`。V1 与 V2 在同一中心库内靠外层版本区分，同一发行身份换正文或坏件均拒绝且不留新实收。
 
 ## 核算与质控
 

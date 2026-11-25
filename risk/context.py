@@ -53,6 +53,8 @@ def bind_context(archive: IntakeArchive, receipt_ids, prior: JointPrior,
         raise ValueError('two ordered receipt ids are required')
     left_item, right_item = (get_received(archive, receipt_id) for receipt_id in receipt_ids)
     left, right = left_item.envelope, right_item.envelope
+    if left.version != 1 or right.version != 1:
+        raise ValueError('assess requires two V1 items; use assess_sum for V2 items')
     if left.batch_id != right.batch_id:
         raise ValueError('items belong to different batches')
     if left.station == right.station:

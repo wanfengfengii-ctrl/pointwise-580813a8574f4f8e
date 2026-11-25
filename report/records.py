@@ -31,6 +31,8 @@ class ReportDraft:
     status: str
     risk: Fraction | None
     disposition: str
+    sum_reading: Fraction | None = None
+    support_order: int | None = None
 
 
 @dataclass(frozen=True)
@@ -48,8 +50,20 @@ def make_draft(context: AssessmentContext, result: RiskResult, disposition: Disp
                        context.isolation_line.value, result.status.value, result.risk, disposition.value)
 
 
+def make_sum_draft(context, result, disposition) -> ReportDraft:
+    sources = tuple(
+        ReportSource(item.receipt_id, *item.envelope.identity, item.envelope.digest)
+        for item in context.items
+    )
+    return ReportDraft(
+        context.batch_id, context.references.names, sources, context.prior.masses,
+        context.isolation_line.value, result.status.value, result.risk, disposition.value,
+        context.sum_reading, result.support_order,
+    )
+
+
 def encode_report(draft: ReportDraft) -> str:
-    return json.dumps({
+    fields = {
         'batch_id': draft.batch_id,
         'references': draft.references,
         'sources': [asdict(source) for source in draft.sources],
@@ -58,12 +72,17 @@ def encode_report(draft: ReportDraft) -> str:
         'status': draft.status,
         'risk': None if draft.risk is None else str(draft.risk),
         'disposition': draft.disposition,
-    }, sort_keys=True, separators=(',', ':'))
+    }
+    if draft.sum_reading is not None:
+        fields['sum_reading'] = str(draft.sum_reading)
+        fields['support_order'] = draft.support_order
+    return json.dumps(fields, sort_keys=True, separators=(',', ':'))
 
 
 def restore_report(report_id: int, encoded: str) -> SignedReport:
     fields = json.loads(encoded)
     risk = fields['risk']
+    sum_reading = fields.get('sum_reading')
     draft = ReportDraft(
         batch_id=fields['batch_id'],
         references=tuple(fields['references']),
@@ -73,5 +92,7 @@ def restore_report(report_id: int, encoded: str) -> SignedReport:
         status=fields['status'],
         risk=None if risk is None else Fraction(risk),
         disposition=fields['disposition'],
+        sum_reading=None if sum_reading is None else Fraction(sum_reading),
+        support_order=fields.get('support_order'),
     )
     return SignedReport(report_id, draft)

@@ -6,6 +6,7 @@ from batch.references import require_id, require_name
 
 _IDENTITY_KEYS = frozenset(('batch_id', 'station', 'revision_id', 'issue_id'))
 _ENVELOPE_KEYS = _IDENTITY_KEYS | {'version', 'sha256', 'body'}
+SUPPORTED_VERSIONS = frozenset((1, 2))
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class Envelope:
     digest: str
     body: bytes
     raw: bytes
+    version: int = 1
 
     @property
     def identity(self) -> tuple[str, str, int, int]:
@@ -65,7 +67,7 @@ def parse_envelope(raw: bytes) -> Envelope:
     if fields.keys() != _ENVELOPE_KEYS:
         raise ValueError('incorrect envelope fields')
     version = fields['version']
-    if type(version) is not int or version != 1:
+    if type(version) is not int or version not in SUPPORTED_VERSIONS:
         raise ValueError('unsupported envelope version')
     digest, body = fields['sha256'], fields['body']
     if not isinstance(digest, str) or re.fullmatch('[0-9a-f]{64}', digest) is None:
@@ -76,4 +78,4 @@ def parse_envelope(raw: bytes) -> Envelope:
         body_bytes = body.encode('utf-8')
     except UnicodeEncodeError as exc:
         raise ValueError('body must be valid UTF-8 text') from exc
-    return Envelope(*read_identity(fields), digest, body_bytes, raw)
+    return Envelope(*read_identity(fields), digest, body_bytes, raw, version)
